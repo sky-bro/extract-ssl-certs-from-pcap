@@ -1,17 +1,17 @@
 #coding=utf-8
-import dpkt
-import struct
-import hashlib
-import socket
-from OpenSSL import crypto
-import json
 import os
 import sys
+import json
 import time
-from concurrent.futures import ThreadPoolExecutor
+import dpkt # 解析pcap包
+import struct
+import socket # 转换为ip地址
+import hashlib # 计算md5
+from OpenSSL import crypto # 证书验证
+from concurrent.futures import ThreadPoolExecutor # 多线程
 
 config = {
-    "re_extract_all": True
+    "re_extract_all": True # 如果发现有相应的日志文件，是否重新提取
 }
  
 def inet_to_str(inet):
@@ -19,9 +19,6 @@ def inet_to_str(inet):
         return socket.inet_ntop(socket.AF_INET,inet)
     except:
         return False
-
-# logfile = open('log.txt', 'w')
-# all_cert_chains = []
 
 def read_tcp_packets(pcap, tcp_piece):
     # 读入所有的tcp包，个数计入count
@@ -162,7 +159,10 @@ def get_server_certs(tcp_piece, server_names, all_cert_chains):
                     cert_chain_data = []
                     
                     while(sub_cert_len<certlen):
-                        this_sub_len=struct.unpack('!I', b'\x00'+sslcombined[curpos:curpos+3])[0]   #当前子证书大小
+                        try:
+                            this_sub_len=struct.unpack('!I', b'\x00'+sslcombined[curpos:curpos+3])[0]   #当前子证书大小
+                        except:
+                            pass
                         curpos+=3
                         this_sub_cert=sslcombined[curpos:curpos+this_sub_len]
                         if len(this_sub_cert) != this_sub_len:
@@ -173,8 +173,9 @@ def get_server_certs(tcp_piece, server_names, all_cert_chains):
                         # start = time.time()
                         md5cert = hashlib.md5(this_sub_cert).hexdigest()
                         filename='%s.der' % md5cert
-                        if not os.path.exists('certs/%s'%filename):
-                            with open('certs/%s'%filename, 'wb') as f:
+                        filename = os.path.join(config['certs_folder'], filename)
+                        if not os.path.isfile(filename):
+                            with open(filename, 'wb') as f:
                                 f.write(this_sub_cert)
                         # sum += time.time() - start
                         # append追加证书链
@@ -207,8 +208,8 @@ def get_server_certs(tcp_piece, server_names, all_cert_chains):
 
 def extract_file(filepath, _cnt):
     print('%05d-Extract: %s' % (_cnt, filepath))
-    if os.path.exists(f'{filepath}.txt') and not config["re_extract_all"]:
-        print('%05d-%s.txt found, skipping...' % (_cnt, filepath))
+    if os.path.exists(f'{filepath}.json') and not config["re_extract_all"]:
+        print('%05d-%s.json found, skipping...' % (_cnt, filepath))
         return
     f = open(filepath,'rb')
     try:
@@ -241,30 +242,38 @@ def extract_file(filepath, _cnt):
     # print("%05d-Get cert_chains & summary took:"%_cnt, time.time()-start)
 
     # start = time.time()
-    with open(f'{filepath}.txt', 'w') as logfile:
+    with open(f'{filepath}.json', 'w') as logfile:
         json.dump(all_cert_chains, logfile, indent="\t")
-        print('%05d-Done wirting: %s.txt' % (_cnt, filepath))
+        print('%05d-Done wirting: %s.json' % (_cnt, filepath))
     # print("%05d-Dump summary json took:"%_cnt, time.time()-start)
 
 if __name__ == "__main__":
     start = time.time()
-    usage = "$ python %s <folder contains trusted certs> <.pcap filepath, or folder with .pcap files>"%sys.argv[0]
+    usage = "python %s <folder contains trusted certs> <.pcap filepath, or folder with .pcap files> <folder for extracted certs>"%sys.argv[0]
     try:
-        trusted_certs_folder = sys.argv[1]
-        extract_from_folder = sys.argv[2]
+        config['trusted_certs_folder'] = sys.argv[1]
+        config['extract_from_folder'] = sys.argv[2]
+        config['certs_folder'] = sys.argv[3]
     except:
-        print(usage)
+        print("\nusage:\n\n\t", usage)
         exit(0)
+    
+    if not os.path.isdir(config['certs_folder']):
+        try:
+            os.mkdir(config['certs_folder'])
+        except FileExistsError as e:
+            print('mkdir failed:\n\t', e)
+            exit(0)
 
-    init_trust_certs(trusted_certs_folder)
+    init_trust_certs(config['trusted_certs_folder'])
 
     count = 0
-    if os.path.isfile(extract_from_folder):
+    if os.path.isfile(config['extract_from_folder']):
         count += 1
-        extract_file(extract_from_folder, count)
-    elif os.path.isdir(extract_from_folder):
+        extract_file(config['extract_from_folder'], count)
+    elif os.path.isdir(config['extract_from_folder']):
         p = ThreadPoolExecutor() #线程池
-        for root, _, files in os.walk(extract_from_folder):
+        for root, _, files in os.walk(config['extract_from_folder']):
             for f in files:
                 ext = os.path.splitext(f)[1]
                 f = os.path.join(root, f)
@@ -274,7 +283,7 @@ if __name__ == "__main__":
                     # extract_file(f)
         p.shutdown()
     else:
-        print(f"{extract_from_folder} not found.")
+        print(f"{config['extract_from_folder']} not found.")
     
     print("total count:", count)
     print("time consumed:", time.time() - start)
