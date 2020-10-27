@@ -14,7 +14,7 @@
 
 ## 2. json输出说明
 
-```json
+```js
 { // (发certificate包的一端就是目的 -- 客户端也可能发certificate包)
     "src_ip": "172.20.113.76", // 源ip
     "dst_ip": "182.61.200.6", // 目的ip
