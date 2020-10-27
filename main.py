@@ -1,4 +1,6 @@
+#!/user/bin/python3
 #coding=utf-8
+
 import os
 import sys
 import json
@@ -244,7 +246,7 @@ def extract_file(filepath, _cnt):
     # start = time.time()
     with open(f'{filepath}.json', 'w') as logfile:
         json.dump(all_cert_chains, logfile, indent="\t")
-        print('%05d-Done wirting: %s.json' % (_cnt, filepath))
+        print('%05d-Done writing: %s.json' % (_cnt, filepath))
     # print("%05d-Dump summary json took:"%_cnt, time.time()-start)
 
 if __name__ == "__main__":
