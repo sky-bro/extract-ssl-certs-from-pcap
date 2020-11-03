@@ -1,5 +1,9 @@
 # extract-ssl-certs-from-pcap
 
+提取pcap中的网站证书,输出为`.der`文件,并将提取的相关信息输出为`.json`文件,例如:
+
+![example extraction](images/example.png)
+
 * [1. 使用说明](#1-使用说明)
 * [2. json输出说明](#2-json输出说明)
 * [3. 其他](#3-其他)
